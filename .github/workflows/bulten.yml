@@ -1,0 +1,56 @@
+name: Bülten (sanal bahis)
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      mod:
+        description: 'bulten · test'
+        type: choice
+        default: bulten
+        options: [bulten, test]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bulten
+  cancel-in-progress: false
+
+jobs:
+  bulten:
+    runs-on: ubuntu-latest
+    timeout-minutes: 19
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - name: Bülteni güncelle
+        env:
+          MOD: ${{ inputs.mod || 'bulten' }}
+          GUN_ILERI: '3'
+          GUN_GERI: '1'
+          BUTCE_DK: '12'
+          PARALEL: '5'
+          BEKLE: '120'
+          ORAN_LIMIT: '400'
+          ORAN_TAZE_DK: '90'
+          YAKIN_TAZE_DK: '25'
+        run: node scraper/bulten.mjs
+
+      - name: GitHub'a kaydet
+        if: ${{ inputs.mod != 'test' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898341+github-actions[bot]@users.noreply.github.com"
+          git add -A data/bulten.json data/sonuclar.json
+          git diff --cached --quiet && { echo "Degisiklik yok"; exit 0; }
+          git commit -q -m "bulten: $(date -u +'%Y-%m-%d %H:%M') UTC"
+          for n in 1 2 3 4 5 6; do
+            if git pull -q --rebase -X theirs && git push -q; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 20 + 5))
+          done
+          exit 1
